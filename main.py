@@ -17,8 +17,9 @@ import dash_bootstrap_components as dbc
 
 
 scaler = MinMaxScaler()
-n_lookback = 60
+n_lookback = 100
 n_forecast = 30
+epochs = 100
 
 
 def get_data():
@@ -42,7 +43,7 @@ def build_and_train_model(x_train, y_train, epochs=50, batch_size=32):
         LSTM(
             units=50,
             return_sequences=True,
-            input_shape=(n_lookback, 1),
+            input_shape=(x_train.shape[1], 1),
         )
     )
     model.add(LSTM(units=50))
@@ -58,6 +59,22 @@ def preprocess_data(data):
     return scaled_data
 
 
+def format_train_test(data, target_column):
+    x = []
+    y = []
+
+    if target_column == "ROC" or target_column == "RSI":
+        for i in range(0, data.shape[0]):
+            x.append(data[i].reshape(1, -1))
+            y.append(data[i, :])
+    else:
+        for i in range(n_lookback, len(data)):
+            x.append(data[i - n_lookback : i])
+            y.append(data[i, 0])
+    x, y = np.array(x), np.array(y)
+    return x, y
+
+
 def predict(target_column, retrain=False):
     origin_data = get_data()
     data = origin_data[[target_column]]
@@ -67,20 +84,7 @@ def predict(target_column, retrain=False):
     data_test = data[int(len(data) * 0.8) :]
 
     scaled_data = preprocess_data(data_train)
-
-    x_train = []
-    y_train = []
-
-    if target_column == "ROC" or target_column == "RSI":
-        for i in range(0, scaled_data.shape[0]):
-            x_train.append(scaled_data[i].reshape(1, -1))
-            y_train.append(scaled_data[i, :])
-    else:
-        for i in range(n_lookback, len(scaled_data)):
-            x_train.append(scaled_data[i - n_lookback : i])
-            y_train.append(scaled_data[i, 0])
-
-    x_train, y_train = np.array(x_train), np.array(y_train)
+    x_train, y_train = format_train_test(scaled_data, target_column)
 
     model = None
     try:
@@ -88,24 +92,12 @@ def predict(target_column, retrain=False):
             raise Exception("Retrain model")
         model = load_model(f"predict_{target_column}_model.h5")
     except:  # noqa: E722
-        model = build_and_train_model(x_train, y_train)
+        model = build_and_train_model(x_train, y_train, epochs=epochs)
         model.save(f"predict_{target_column}_model.h5")
 
     # test the model
     scaled_data = preprocess_data(data_test)
-    x_test = []
-    y_test = []
-    if target_column == "ROC" or target_column == "RSI":
-        for i in range(0, scaled_data.shape[0]):
-            x_test.append(scaled_data[i].reshape(1, -1))
-            y_test.append(scaled_data[i, :])
-    else:
-        for i in range(n_lookback, len(scaled_data)):
-            x_test.append(scaled_data[i - n_lookback : i, 0])
-            y_test.append(scaled_data[i, 0])
-    x_test, y_test = np.array(x_test), np.array(y_test)
-    print(x_test)
-    print(x_test.shape)
+    x_test, y_test = format_train_test(scaled_data, target_column)
     predictions = model.predict(x_test)
 
     # create future prediction x
