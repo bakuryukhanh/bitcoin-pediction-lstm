@@ -1,8 +1,9 @@
 import requests
 import pandas as pd
+from datetime import datetime
 
 
-def fetch_binance_data(symbol="BTCUSDT", interval="1m", limit=1000):
+def fetch_binance_data(symbol="BTCUSDT", interval="1d", limit=1000):
     url = "https://api.binance.com/api/v3/klines"
     params = {"symbol": symbol, "interval": interval, "limit": limit}
     response = requests.get(url, params=params)
@@ -24,6 +25,12 @@ def fetch_binance_data(symbol="BTCUSDT", interval="1m", limit=1000):
             "ignore",
         ],
     )
+    df["date_string"] = df["timestamp"].apply(
+        lambda x: datetime.utcfromtimestamp(x / 1000).strftime("%Y-%m-%d")
+    )
     df["Date"] = pd.to_numeric(df["timestamp"])
     df["Close"] = df["close"].astype(float)
-    return df[["Date", "Close"]]
+    return df
+
+
+fetch_binance_data()
